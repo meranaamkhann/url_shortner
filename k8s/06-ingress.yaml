@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: url-shortener-ingress
+  namespace: url-shortener
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Rate limiting also exists at the ingress layer as defense-in-depth, on top
+    # of the application-level Redis-backed limiter — the ingress layer absorbs
+    # crude volumetric abuse before it even reaches an application pod.
+    nginx.ingress.kubernetes.io/limit-rps: "200"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - short.yourdomain.com
+        - api.yourdomain.com
+      secretName: url-shortener-tls
+  rules:
+    - host: short.yourdomain.com
+      http:
+        paths:
+          - path: /r/
+            pathType: Prefix
+            backend:
+              service:
+                name: url-shortener-service
+                port:
+                  number: 80
+    - host: api.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: url-shortener-service
+                port:
+                  number: 80

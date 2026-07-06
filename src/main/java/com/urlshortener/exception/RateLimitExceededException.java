@@ -1,0 +1,9 @@
+package com.urlshortener.exception;
+
+import org.springframework.http.HttpStatus;
+
+public class RateLimitExceededException extends AppException {
+    public RateLimitExceededException(String message) {
+        super(message, HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED");
+    }
+}

@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: url-shortener
+
+  profiles:
+    active: dev
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/urlshortener
+    username: urlshortener
+    password: urlshortener
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 30000
+      connection-timeout: 20000
+      pool-name: UrlShortenerHikariPool
+
+  jpa:
+    hibernate:
+      ddl-auto: validate     # schema is owned by Flyway migrations, never by Hibernate
+    open-in-view: false      # avoid the "open session in view" anti-pattern
+    properties:
+      hibernate:
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
+        format_sql: false
+        default_schema: public
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: url-shortener-analytics-consumer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.urlshortener.dto.event"
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+  error:
+    include-message: always
+    include-binding-errors: always
+
+app:
+  base-url: http://localhost:8080
+  short-code:
+    length: 7
+  jwt:
+    secret: ${JWT_SECRET:dGhpcy1pcy1hLXZlcnktbG9uZy1zZWNyZXQta2V5LWZvci1qd3Qtc2lnbmluZy1wcm9kdWN0aW9uLWdyYWRl}
+    access-token-expiration-ms: 900000        # 15 minutes
+    refresh-token-expiration-ms: 604800000    # 7 days
+  rate-limit:
+    anonymous-requests-per-minute: 20
+    authenticated-requests-per-minute: 100
+    shorten-requests-per-hour: 200
+  cache:
+    url-ttl-seconds: 3600
+    negative-ttl-seconds: 60
+  kafka:
+    topics:
+      click-events: click-events
+      audit-events: audit-events
+    replication-factor: ${KAFKA_REPLICATION_FACTOR:1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+      group:
+        readiness:
+          include: readinessState, db, redis
+        liveness:
+          include: livenessState
+  metrics:
+    tags:
+      application: url-shortener
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%X{traceId},%X{spanId}] %-5level %logger{36} - %msg%n"
+  level:
+    com.urlshortener: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

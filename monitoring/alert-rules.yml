@@ -1,0 +1,57 @@
+groups:
+  - name: url-shortener-alerts
+    rules:
+
+      - alert: HighRedirectLatency
+        expr: histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{uri="/r/{shortCode}"}[5m])) by (le)) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p99 redirect latency above 100ms"
+          description: "The redirect hot path's p99 latency has exceeded 100ms for 5 minutes — investigate cache hit rate and DB load."
+
+      - alert: HighErrorRate
+        expr: sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "5xx error rate above 5%"
+          description: "More than 5% of requests are failing with server errors over the last 5 minutes."
+
+      - alert: LowCacheHitRate
+        expr: rate(cache_gets_total{cache="urls", result="hit"}[15m]) / rate(cache_gets_total{cache="urls"}[15m]) < 0.7
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "URL cache hit rate below 70%"
+          description: "Redis cache-aside hit rate has dropped, indicating possible cache invalidation storms or Redis instability."
+
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HikariCP connection pool near exhaustion"
+          description: "Active DB connections are above 90% of the configured pool size — risk of request queuing/timeouts."
+
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_lag_sum > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag exceeds 10,000 messages"
+          description: "The click-events consumer is falling behind — analytics data may be significantly delayed."
+
+      - alert: ApplicationDown
+        expr: up{job="url-shortener"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "URL shortener instance is down"
+          description: "Prometheus cannot scrape this instance — it may be crashed, unhealthy, or unreachable."

@@ -1,0 +1,46 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: url-shortener-hpa
+  namespace: url-shortener
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: url-shortener
+  minReplicas: 3
+  maxReplicas: 20
+
+  # Scale on CPU primarily (the redirect hot path is CPU-bound on JSON
+  # serialization + JWT parsing under load), with memory as a secondary
+  # signal to catch leaks/heap pressure before they cause OOMKills.
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+
+  behavior:
+    # Scale up fast (traffic spikes/viral links should be absorbed quickly)
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    # Scale down slowly (avoid flapping — a brief lull shouldn't immediately
+    # shed capacity that's needed again 2 minutes later)
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 60

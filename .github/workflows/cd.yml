@@ -1,0 +1,125 @@
+name: CD
+
+# Deploys only on a successful merge to main, after CI has already passed
+# (CI runs on the same push event; CD additionally requires environment
+# approval gates configured in GitHub's Environments settings for "production").
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+
+  build-and-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy manifests
+        run: |
+          kubectl apply -f k8s/00-namespace.yaml
+          kubectl apply -f k8s/01-configmap.yaml
+          kubectl apply -f k8s/04-service.yaml
+          kubectl apply -f k8s/05-hpa.yaml
+          kubectl apply -f k8s/07-pdb.yaml
+          kubectl set image deployment/url-shortener \
+            url-shortener=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }} \
+            -n url-shortener
+          kubectl rollout status deployment/url-shortener -n url-shortener --timeout=180s
+
+      - name: Run smoke tests against staging
+        run: |
+          curl -sf https://staging-short.yourdomain.com/actuator/health | grep '"status":"UP"'
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-staging]
+    # GitHub Environments "production" should be configured with required
+    # reviewers in repo Settings — this is what gives us a manual approval
+    # gate before anything touches prod, without needing a separate tool.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > $HOME/.kube/config
+
+      - name: Deploy manifests
+        run: |
+          kubectl apply -f k8s/00-namespace.yaml
+          kubectl apply -f k8s/01-configmap.yaml
+          kubectl apply -f k8s/04-service.yaml
+          kubectl apply -f k8s/05-hpa.yaml
+          kubectl apply -f k8s/06-ingress.yaml
+          kubectl apply -f k8s/07-pdb.yaml
+          kubectl set image deployment/url-shortener \
+            url-shortener=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }} \
+            -n url-shortener
+          # maxUnavailable: 0 in the Deployment spec guarantees this is a
+          # zero-downtime rollout; rollout status blocks until every new pod
+          # is Ready, and the job fails (triggering rollback below) otherwise.
+          kubectl rollout status deployment/url-shortener -n url-shortener --timeout=300s
+
+      - name: Smoke test production
+        run: |
+          curl -sf https://short.yourdomain.com/actuator/health | grep '"status":"UP"'
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment or smoke test failed — rolling back to the previous revision."
+          kubectl rollout undo deployment/url-shortener -n url-shortener
+          kubectl rollout status deployment/url-shortener -n url-shortener --timeout=180s

@@ -1,0 +1,18 @@
+package com.urlshortener.domain.enums;
+
+public enum AuditAction {
+    USER_REGISTERED,
+    LOGIN_SUCCESS,
+    LOGIN_FAILED,
+    TOKEN_REFRESHED,
+    LOGOUT,
+    URL_CREATED,
+    URL_UPDATED,
+    URL_DISABLED,
+    URL_ENABLED,
+    URL_SOFT_DELETED,
+    URL_HARD_DELETED,
+    URL_RESTORED,
+    RATE_LIMIT_BLOCKED,
+    SUSPICIOUS_URL_BLOCKED
+}

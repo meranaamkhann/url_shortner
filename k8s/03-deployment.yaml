@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: url-shortener
+  namespace: url-shortener
+  labels:
+    app: url-shortener
+spec:
+  # Start at 3 replicas: minimum needed to survive a single node failure
+  # while keeping at least 2 instances serving traffic (N-1 redundancy).
+  # HorizontalPodAutoscaler (04-hpa.yaml) scales this up under load.
+  replicas: 3
+
+  # Rolling update with maxUnavailable: 0 — zero-downtime deploys. A new pod
+  # must pass its readiness probe before an old one is terminated, so traffic
+  # is never routed to a pod count below the desired replica count.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: url-shortener
+
+  template:
+    metadata:
+      labels:
+        app: url-shortener
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
+    spec:
+      # Spread pods across nodes/AZs rather than letting the scheduler pack them
+      # onto one node — protects against a single node/AZ failure taking out
+      # every replica simultaneously.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: url-shortener
+
+      containers:
+        - name: url-shortener
+          image: ghcr.io/yourorg/url-shortener:latest   # overridden per-deploy by CI/CD with the immutable SHA tag
+          ports:
+            - containerPort: 8080
+
+          envFrom:
+            - configMapRef:
+                name: url-shortener-config
+            - secretRef:
+                name: url-shortener-secrets
+
+          # Resource requests = guaranteed minimum (used by the scheduler for
+          # bin-packing decisions); limits = hard ceiling. CPU limit is set
+          # higher than the request to allow bursting under load while still
+          # giving the scheduler an accurate baseline for placement.
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "768Mi"
+            limits:
+              cpu: "1500m"
+              memory: "1Gi"
+
+          # Liveness: "is the JVM process alive and not deadlocked?" — restarts
+          # the container if this fails. Deliberately lightweight (no DB/Redis
+          # check) so a transient downstream outage doesn't trigger a pointless
+          # restart loop on an otherwise-healthy pod.
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # Readiness: "is this pod ready to receive traffic?" — checks DB/Redis
+          # connectivity via Spring Boot's readiness health group. A pod that
+          # fails this is removed from the Service's load-balancing rotation
+          # WITHOUT being restarted, since the underlying issue (e.g. DB
+          # temporarily unreachable) may resolve on its own.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # Startup probe: gives slow-starting JVMs (cold start, Flyway
+          # migrations running) up to 2 minutes before liveness probing even
+          # begins, preventing a slow-but-healthy startup from being killed.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 24
+
+          # Graceful shutdown: SIGTERM is sent first; Spring Boot's graceful
+          # shutdown (server.shutdown=graceful in production) finishes in-flight
+          # requests before the process exits, and terminationGracePeriodSeconds
+          # gives it time to do so before Kubernetes sends SIGKILL.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]   # allow in-flight LB connections to drain
+
+      terminationGracePeriodSeconds: 30

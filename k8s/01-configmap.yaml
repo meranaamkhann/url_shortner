@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: url-shortener-config
+  namespace: url-shortener
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  APP_BASE_URL: "https://short.yourdomain.com"
+  DB_POOL_SIZE: "50"
+  REDIS_PORT: "6379"
+  REDIS_SSL: "true"
+  KAFKA_REPLICATION_FACTOR: "3"
