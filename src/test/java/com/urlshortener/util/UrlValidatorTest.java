@@ -83,6 +83,11 @@ class UrlValidatorTest {
     @Test
     @DisplayName("isSafeForServerSideFetch allows public addresses")
     void allowsPublicAddressForServerSideFetch() {
-        assertThat(validator.isSafeForServerSideFetch("https://example.com")).isTrue();
+        // A literal IP (not a hostname) so InetAddress.getByName() parses it directly
+        // instead of performing a live DNS lookup — keeps this a true, hermetic unit
+        // test instead of one that hangs or fails depending on network/DNS availability
+        // in the build environment. 1.1.1.1 (Cloudflare's public resolver) is a stable,
+        // well-known public, non-reserved IPv4 address for exactly this purpose.
+        assertThat(validator.isSafeForServerSideFetch("https://1.1.1.1")).isTrue();
     }
 }

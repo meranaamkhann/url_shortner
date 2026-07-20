@@ -329,9 +329,11 @@ public class UrlService {
     // ─── Scheduled jobs ──────────────────────────────────────────────────────
 
     /**
-     * Marks time-expired ACTIVE URLs as EXPIRED and evicts their cache entries.
-     * Runs every 5 minutes. Processes in pages of 500 to bound memory footprint
-     * and avoid a single transaction holding locks on thousands of rows.
+     * Marks expired ACTIVE URLs as EXPIRED and evicts their cache entries — covers both
+     * time-based expiry (expiresAt passed) and click-count-based expiry (clickCount reached
+     * maxClicks; see UrlRepository#findExpiredButStillActive). Runs every 5 minutes.
+     * Processes in pages of 500 to bound memory footprint and avoid a single transaction
+     * holding locks on thousands of rows.
      */
     @Scheduled(fixedDelayString = "PT5M", initialDelayString = "PT1M")
     @Transactional
@@ -339,7 +341,7 @@ public class UrlService {
         Pageable page = PageRequest.of(0, 500);
         List<Url> expired = urlRepository.findExpiredButStillActive(Instant.now(), page);
         if (!expired.isEmpty()) {
-            log.info("Expiry sweep: marking {} URLs as EXPIRED", expired.size());
+            log.info("Expiry sweep: marking {} URLs as EXPIRED (time-based or max-clicks-reached)", expired.size());
             for (Url url : expired) {
                 url.setStatus(UrlStatus.EXPIRED);
                 cacheService.evict(url.getShortCode());

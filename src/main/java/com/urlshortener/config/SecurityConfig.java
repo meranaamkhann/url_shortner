@@ -84,9 +84,12 @@ public class SecurityConfig {
                             .includeSubDomains(true)
                             .maxAgeInSeconds(31536000))                          // Strict-Transport-Security
                     .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                    .permissionsPolicy(pp -> pp.policy("geolocation=(), microphone=(), camera=()"))
                     .contentSecurityPolicy(csp -> csp.policyDirectives(
-                            "default-src 'self'; frame-ancestors 'none'; object-src 'none'")))
+                            "default-src 'self'; frame-ancestors 'none'; object-src 'none'"))
+                    // permissionsPolicy() is called last in this chain deliberately: its
+                    // Customizer overload returns its own nested PermissionsPolicyConfig
+                    // rather than HeadersConfigurer, so nothing can be chained after it.
+                    .permissionsPolicy(pp -> pp.policy("geolocation=(), microphone=(), camera=()")))
             .authorizeHttpRequests(auth -> auth
                     // Public, unauthenticated endpoints
                     .requestMatchers("/api/v1/auth/**").permitAll()

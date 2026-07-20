@@ -56,8 +56,20 @@ public interface UrlRepository extends JpaRepository<Url, UUID> {
     @Query("update Url u set u.deletedAt = :now, u.status = 'DELETED' where u.id = :id")
     int softDelete(@Param("id") UUID id, @Param("now") Instant now);
 
-    /** Scheduled job target: URLs whose expiry passed but are still marked ACTIVE. */
-    @Query("select u from Url u where u.status = 'ACTIVE' and u.expiresAt is not null and u.expiresAt < :now and u.deletedAt is null")
+    /**
+     * Scheduled job target: URLs whose expiry passed but are still marked ACTIVE — covers
+     * BOTH expiry modes (Functional Requirement: time-based AND click-count-based expiry).
+     * The redirect hot path (UrlService#resolveAndTrack) deliberately trusts the cached
+     * UrlResponse's `status` field rather than recomputing expiry on every request, since
+     * clickCount is updated asynchronously (via the Kafka click-events consumer) and isn't
+     * safe to treat as live inside a 1-hour-cached DTO. This sweep is what actually flips
+     * `status` to EXPIRED (and evicts the cache entry) once either condition is met, so the
+     * hot path's cheap "status == EXPIRED?" check stays correct within one sweep interval
+     * (5 minutes — see UrlService#markExpiredUrls).
+     */
+    @Query("select u from Url u where u.status = 'ACTIVE' and u.deletedAt is null and "
+            + "((u.expiresAt is not null and u.expiresAt < :now) "
+            + "or (u.maxClicks is not null and u.clickCount >= u.maxClicks))")
     List<Url> findExpiredButStillActive(@Param("now") Instant now, Pageable pageable);
 
     /** Hard-delete sweep target: soft-deleted rows past the retention window. */

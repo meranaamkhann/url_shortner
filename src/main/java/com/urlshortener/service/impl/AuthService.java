@@ -71,7 +71,7 @@ public class AuthService {
     public AuthResponse login(LoginRequest request, String userAgent, String ipAddress) {
         User user = userRepository.findByUsername(request.usernameOrEmail())
                 .or(() -> userRepository.findByEmail(request.usernameOrEmail()))
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid username/email or password."));
+                .orElseThrow(() -> new InvalidCredentialsException("The email or password you entered is incorrect."));
 
         if (user.isAccountLocked()) {
             auditLogService.log(user.getId(), AuditAction.LOGIN_FAILED, "User", user.getId().toString(),
@@ -90,7 +90,7 @@ public class AuthService {
             userRepository.save(user);
             auditLogService.log(user.getId(), AuditAction.LOGIN_FAILED, "User", user.getId().toString(),
                     ipAddress, Map.of("failedCount", failures));
-            throw new InvalidCredentialsException("Invalid username/email or password.");
+            throw new InvalidCredentialsException("The email or password you entered is incorrect.");
         }
 
         // Reset failure count on successful login

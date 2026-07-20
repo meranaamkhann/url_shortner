@@ -86,6 +86,8 @@ class UrlServiceTest {
 
         lenient().when(cacheService.get(anyString())).thenReturn(Optional.empty());
         lenient().when(cacheService.isNegative(any())).thenReturn(false);
+        lenient().when(geoLocationService.resolve(anyString()))
+                .thenReturn(new GeoLocationService.GeoLocation("XX", "Unknown"));
     }
 
     @Test

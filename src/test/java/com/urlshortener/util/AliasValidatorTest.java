@@ -17,7 +17,8 @@ class AliasValidatorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ab", "has space", "has/slash", "has?query", "x".repeat(33)})
+    @ValueSource(strings = {"ab", "has space", "has/slash", "has?query",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}) // 33 x's — one over the 32-char max, must stay a literal (annotation values must be compile-time constants)
     void rejectsInvalidFormatAliases(String alias) {
         assertThatThrownBy(() -> AliasValidator.validate(alias)).isInstanceOf(InvalidUrlException.class);
     }

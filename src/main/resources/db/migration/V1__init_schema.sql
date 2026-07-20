@@ -140,14 +140,14 @@ CREATE INDEX idx_click_events_clicked_at ON click_events(clicked_at);
 CREATE TABLE url_analytics_daily (
     id            BIGSERIAL PRIMARY KEY,
     url_id        UUID NOT NULL REFERENCES urls(id) ON DELETE CASCADE,
-    day           DATE NOT NULL,
+    stat_date     DATE NOT NULL,
     total_clicks  BIGINT NOT NULL DEFAULT 0,
     unique_clicks BIGINT NOT NULL DEFAULT 0,
     bot_clicks    BIGINT NOT NULL DEFAULT 0,
-    UNIQUE (url_id, day)
+    UNIQUE (url_id, stat_date)
 );
 
-CREATE INDEX idx_url_analytics_daily_url ON url_analytics_daily(url_id, day DESC);
+CREATE INDEX idx_url_analytics_daily_url ON url_analytics_daily(url_id, stat_date DESC);
 
 -- ---------------------------------------------------------------------------
 -- AUDIT LOGS  (security & compliance trail)

@@ -25,6 +25,11 @@
         <zxing.version>3.5.3</zxing.version>
         <testcontainers.version>1.20.2</testcontainers.version>
         <jsoup.version>1.18.1</jsoup.version>
+        <!-- Lets CI's `mvn verify -DskipUnitTests=true` step run ONLY the Testcontainers
+             *IT tests (Failsafe) without re-running the fast unit suite (Surefire) that
+             the previous CI step already ran — see maven-surefire-plugin config below
+             and .github/workflows/ci.yml. -->
+        <skipUnitTests>false</skipUnitTests>
     </properties>
 
     <dependencies>
@@ -202,6 +207,13 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>${skipUnitTests}</skipTests>
                 </configuration>
             </plugin>
             <plugin>
