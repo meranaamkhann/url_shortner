@@ -44,15 +44,15 @@ public interface UrlRepository extends JpaRepository<Url, UUID> {
      * race condition under concurrent redirects. A single UPDATE...SET x = x + 1 is
      * executed entirely inside the database and is safe under any level of concurrency.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("update Url u set u.clickCount = u.clickCount + 1 where u.id = :id")
     int incrementClickCount(@Param("id") UUID id);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("update Url u set u.status = :status where u.id = :id")
     int updateStatus(@Param("id") UUID id, @Param("status") UrlStatus status);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("update Url u set u.deletedAt = :now, u.status = 'DELETED' where u.id = :id")
     int softDelete(@Param("id") UUID id, @Param("now") Instant now);
 
@@ -76,7 +76,7 @@ public interface UrlRepository extends JpaRepository<Url, UUID> {
     @Query(value = "select u.id from Url u where u.deletedAt is not null and u.deletedAt < :cutoff")
     List<UUID> findSoftDeletedBefore(@Param("cutoff") Instant cutoff);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query(value = "delete from Url u where u.id in :ids")
     void hardDeleteByIds(@Param("ids") List<UUID> ids);
 }

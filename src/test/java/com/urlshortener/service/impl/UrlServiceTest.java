@@ -204,7 +204,10 @@ class UrlServiceTest {
                 .updatedAt(Instant.now())
                 .build();
         when(urlRepository.findByShortCodeAndDefaultDomain("activeCode")).thenReturn(Optional.of(active));
+        when(httpServletRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+        when(httpServletRequest.getHeader("X-Real-IP")).thenReturn(null);
         when(httpServletRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
+        when(httpServletRequest.getHeader("Referer")).thenReturn(null);
         when(httpServletRequest.getRemoteAddr()).thenReturn("203.0.113.5");
 
         String result = urlService.resolveAndTrack("activeCode", httpServletRequest);

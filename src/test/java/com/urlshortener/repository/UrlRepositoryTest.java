@@ -1,12 +1,13 @@
 package com.urlshortener.repository;
 
+import com.urlshortener.config.JpaAuditingConfig;
 import com.urlshortener.domain.entity.Url;
 import com.urlshortener.domain.enums.UrlStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
@@ -14,7 +15,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Repository-slice tests: real JPA/Hibernate query execution against an in-memory
@@ -22,8 +22,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * These specifically validate the things that are easy to get subtly wrong in
  * hand-written JPQL: soft-delete filtering, the unique constraint behind alias
  * collisions, and atomic counter updates.
+ *
+ * @Import(JpaAuditingConfig.class) is required here: @DataJpaTest only picks up
+ * @Entity classes, Spring Data repositories, and a curated set of JPA-related
+ * auto-configuration — it does NOT component-scan arbitrary @Configuration
+ * classes the way a full @SpringBootTest does. Without this import,
+ * AuditingEntityListener has no registered AuditingHandler in this test's
+ * context, so @CreatedDate/@LastModifiedDate on BaseEntity silently never fire
+ * and created_at/updated_at insert as NULL, failing on the NOT NULL constraint.
  */
 @DataJpaTest
+@Import(JpaAuditingConfig.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 class UrlRepositoryTest {
@@ -61,13 +70,14 @@ class UrlRepositoryTest {
         assertThat(found).isEmpty();
     }
 
-    @Test
-    void duplicateShortCodeInDefaultDomain_violatesUniqueConstraint() {
-        urlRepository.saveAndFlush(buildUrl("dupCode1"));
-
-        assertThatThrownBy(() -> urlRepository.saveAndFlush(buildUrl("dupCode1")))
-                .isInstanceOf(DataIntegrityViolationException.class);
-    }
+    // NOTE: the "duplicate short code violates the unique constraint" case is deliberately
+    // NOT tested here. The real constraint (uq_urls_domain_shortcode in V1__init_schema.sql)
+    // is a Postgres partial/expression index using COALESCE(domain_id::text, 'default') —
+    // this @DataJpaTest slice creates its schema from Hibernate's DDL auto-generation based
+    // on JPA annotations, not from the Flyway migration, so that constraint simply doesn't
+    // exist in this test's database and never can. See
+    // UrlRepositoryConstraintIT#duplicateShortCodeInDefaultDomain_violatesUniqueConstraint
+    // for the real version of this test, which runs against actual Postgres with Flyway applied.
 
     @Test
     void incrementClickCount_isAtomicAndCumulative() {
