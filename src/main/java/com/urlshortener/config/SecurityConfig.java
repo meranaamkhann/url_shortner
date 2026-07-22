@@ -11,6 +11,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -93,10 +94,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                     // Public, unauthenticated endpoints
                     .requestMatchers("/api/v1/auth/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/urls").permitAll() // anonymous shortening — see UrlController#create's javadoc
                     .requestMatchers("/r/**").permitAll()                       // the redirect hot path
                     .requestMatchers("/api/v1/public/**").permitAll()
                     .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                    .requestMatchers("/", "/*.html", "/assets/**", "/static/**").permitAll() // the static frontend
                     // Admin-only surface
                     .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                     // Everything else requires authentication; per-resource ownership is

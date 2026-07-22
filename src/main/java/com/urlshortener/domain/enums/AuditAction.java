@@ -6,6 +6,7 @@ public enum AuditAction {
     LOGIN_FAILED,
     TOKEN_REFRESHED,
     LOGOUT,
+    PASSWORD_CHANGED,
     URL_CREATED,
     URL_UPDATED,
     URL_DISABLED,
