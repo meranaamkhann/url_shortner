@@ -86,7 +86,15 @@ public class SecurityConfig {
                             .maxAgeInSeconds(31536000))                          // Strict-Transport-Security
                     .referrerPolicy(rp -> rp.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                     .contentSecurityPolicy(csp -> csp.policyDirectives(
-                            "default-src 'self'; frame-ancestors 'none'; object-src 'none'"))
+                        "default-src 'self'; " +
+                        "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net; " +
+                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                        "font-src 'self' https://fonts.gstatic.com; " +
+                        "img-src 'self' data: blob:; " +
+                        "connect-src 'self'; " +
+                        "frame-ancestors 'none'; " +
+                        "object-src 'none';"
+                    ))
                     // permissionsPolicy() is called last in this chain deliberately: its
                     // Customizer overload returns its own nested PermissionsPolicyConfig
                     // rather than HeadersConfigurer, so nothing can be chained after it.

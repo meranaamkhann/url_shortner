@@ -19,7 +19,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- ROLES
 -- ---------------------------------------------------------------------------
 CREATE TABLE roles (
-    id          SMALLSERIAL PRIMARY KEY,
+    id          SERIAL PRIMARY KEY,
     name        VARCHAR(50) NOT NULL UNIQUE,      -- ROLE_USER, ROLE_ADMIN
     description VARCHAR(255)
 );
@@ -44,7 +44,7 @@ CREATE TABLE users (
 
 CREATE TABLE user_roles (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role_id SMALLINT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     PRIMARY KEY (user_id, role_id)
 );
 

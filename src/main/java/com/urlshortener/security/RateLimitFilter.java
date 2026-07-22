@@ -54,7 +54,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
         // Health checks, metrics scraping, and docs are exempt — they're internal/infra traffic.
         String path = request.getRequestURI();
-        if (path.startsWith("/actuator") || path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
+         // Only rate-limit API endpoints.
+         if (!path.startsWith("/api")) {
             chain.doFilter(request, response);
             return;
         }
