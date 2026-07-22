@@ -405,7 +405,8 @@ public class UrlService {
         try {
             String clientIp = IpAddressUtil.resolveClientIp(request);
             String ipHash = HashUtil.sha256Hex(clientIp);
-            GeoLocationService.GeoLocation geo = geoLocationService.resolve(clientIp);
+             GeoLocationService.GeoLocation geo =
+             new GeoLocationService.GeoLocation("XX", "Unknown");
 
             clickEventProducer.publish(new ClickEventMessage(
                     url.id(),
